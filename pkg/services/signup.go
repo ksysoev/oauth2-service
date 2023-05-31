@@ -1,27 +1,30 @@
 package services
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"github.com/ksysoev/oauth2-service/pkg/aggregates"
+	"github.com/ksysoev/oauth2-service/pkg/repos"
 )
 
 type SignUpRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Name     string `form:"name"`
+	Email    string `form:"email"`
+	Password string `form:"password"`
 }
 
 func SignUp(c *gin.Context, request *SignUpRequest, mongoClient *mongo.Client) error {
-	err := mongoClient.Ping(context.Background(), nil)
+
+	user, err := aggregates.CreateUser(request.Email, request.Name, request.Password)
+
 	if err != nil {
-		fmt.Println("Failed to ping MongoDB:", err)
 		return err
 	}
 
-	_, err = mongoClient.Database("oauth2").Collection("users").InsertOne(c, request)
+	UserRepo := repos.NewUserRepo(mongoClient)
+
+	err = UserRepo.AddUser(c, user)
 
 	if err != nil {
 		return err
