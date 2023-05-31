@@ -1,4 +1,4 @@
-module github.com/oaut2-service
+module github.com/ksysoev/oauth2-service
 
 go 1.20
 
