@@ -17,7 +17,7 @@ func NewUserRepo(db *mongo.Client) *UserRepo {
 	return &UserRepo{db: db}
 }
 
-func (r *UserRepo) AddUser(ctx context.Context, user aggregates.User) error {
+func (r *UserRepo) AddUser(ctx context.Context, user *aggregates.User) error {
 	err := r.db.Ping(context.Background(), nil)
 	if err != nil {
 		fmt.Println("Failed to ping MongoDB:", err)
