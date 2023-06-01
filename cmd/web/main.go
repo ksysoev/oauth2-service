@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
+	csrf "github.com/utrack/gin-csrf"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/oauth2"
@@ -56,6 +60,21 @@ func main() {
 	// Initialize the Gin router
 	router := gin.Default()
 
+	// Initialize the Redis store for sessions
+	store, err := redis.NewStore(5, "tcp", "localhost:6379", "", []byte("secret"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	router.Use(sessions.Sessions("mysession", store))
+
+	router.Use(csrf.Middleware(csrf.Options{
+		Secret: "secret123",
+		ErrorFunc: func(c *gin.Context) {
+			c.String(400, "CSRF token mismatch")
+			c.Abort()
+		},
+	}))
+
 	// Load the HTML template
 	router.LoadHTMLGlob("templates/*")
 
@@ -64,18 +83,21 @@ func main() {
 	router.POST("/signup", SignUp)
 	router.GET("/signup", SignUp)
 
+	router.POST("/signin", SignIn)
+	router.GET("/signin", SignIn)
+
 	// Start the server
 	router.Run(":8080")
 }
 
 // handleHome is the handler for the home page.
 func handleHome(c *gin.Context) {
-	c.HTML(http.StatusOK, "home.html", gin.H{})
+	c.Redirect(http.StatusMovedPermanently, "/signin")
 }
 
 func SignUp(c *gin.Context) {
 	if c.Request.Method == "GET" {
-		c.HTML(http.StatusOK, "registration.html", gin.H{})
+		c.HTML(http.StatusOK, "signup.tmpl", gin.H{})
 		return
 	}
 
@@ -91,5 +113,28 @@ func SignUp(c *gin.Context) {
 		return
 	}
 
+	c.HTML(http.StatusOK, "home.tmpl", gin.H{})
+	return
+}
+
+func SignIn(c *gin.Context) {
+	if c.Request.Method == "GET" {
+		c.HTML(http.StatusOK, "signin.tmpl", gin.H{})
+		return
+	}
+
+	var signInRequest services.SignInRequest
+	if err := c.ShouldBind(&signInRequest); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := services.SignIn(c, &signInRequest, mongoClient)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.HTML(http.StatusOK, "home.tmpl", gin.H{})
 	return
 }
